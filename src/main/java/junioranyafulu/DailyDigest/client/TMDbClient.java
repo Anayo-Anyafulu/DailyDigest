@@ -24,7 +24,7 @@ public class TMDbClient {
 
     public TMDbClient(@Value("${api.tmdb.base-url}") String baseUrl) {
         this.webClient = WebClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(java.util.Objects.requireNonNull(baseUrl))
                 .build();
     }
 

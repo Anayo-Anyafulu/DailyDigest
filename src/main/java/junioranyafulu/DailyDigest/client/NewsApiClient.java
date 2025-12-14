@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.Objects;
 
 @Service
 @Slf4j
@@ -29,7 +30,7 @@ public class NewsApiClient {
 
     public NewsApiClient(@Value("${api.newsapi.base-url}") String baseUrl) {
         this.webClient = WebClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(Objects.requireNonNull(baseUrl))
                 .build();
     }
 

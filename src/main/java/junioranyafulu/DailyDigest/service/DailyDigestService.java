@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -64,18 +65,36 @@ public class DailyDigestService {
             digest = digestRepository.save(digest);
             log.info("Created digest with ID: {}", digest.getId());
 
-            // Fetch data from all sources
-            log.info("Fetching entertainment news from NewsAPI...");
-            NewsApiResponse newsResponse = newsApiClient.getTopHeadlines();
+            // Fetch data from all sources asynchronously
+            log.info("Fetching data from all sources in parallel...");
 
-            log.info("Fetching trending movies from TMDb...");
-            TmdbMovieResponse moviesResponse = tmdbClient.getTrendingMovies();
+            CompletableFuture<NewsApiResponse> newsFuture = CompletableFuture.supplyAsync(() -> {
+                log.info("Fetching entertainment news from NewsAPI...");
+                return newsApiClient.getTopHeadlines();
+            });
 
-            log.info("Fetching trending TV shows from TMDb...");
-            TmdbTVResponse tvResponse = tmdbClient.getTrendingTVShows();
+            CompletableFuture<TmdbMovieResponse> moviesFuture = CompletableFuture.supplyAsync(() -> {
+                log.info("Fetching trending movies from TMDb...");
+                return tmdbClient.getTrendingMovies();
+            });
 
-            log.info("Fetching trending games from RAWG...");
-            RawgGamesResponse gamesResponse = rawgClient.getTrendingGames();
+            CompletableFuture<TmdbTVResponse> tvFuture = CompletableFuture.supplyAsync(() -> {
+                log.info("Fetching trending TV shows from TMDb...");
+                return tmdbClient.getTrendingTVShows();
+            });
+
+            CompletableFuture<RawgGamesResponse> gamesFuture = CompletableFuture.supplyAsync(() -> {
+                log.info("Fetching trending games from RAWG...");
+                return rawgClient.getTrendingGames();
+            });
+
+            // Wait for all to complete
+            CompletableFuture.allOf(newsFuture, moviesFuture, tvFuture, gamesFuture).join();
+
+            NewsApiResponse newsResponse = newsFuture.get();
+            TmdbMovieResponse moviesResponse = moviesFuture.get();
+            TmdbTVResponse tvResponse = tvFuture.get();
+            RawgGamesResponse gamesResponse = gamesFuture.get();
 
             // Generate AI summary
             if (newsResponse != null && newsResponse.getArticles() != null && !newsResponse.getArticles().isEmpty()) {
