@@ -3,6 +3,7 @@ package junioranyafulu.DailyDigest.client;
 import junioranyafulu.DailyDigest.dto.rawg.RawgGamesResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -25,10 +26,11 @@ public class RAWGClient {
 
     public RAWGClient(@Value("${api.rawg.base-url}") String baseUrl) {
         this.webClient = WebClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(java.util.Objects.requireNonNull(baseUrl))
                 .build();
     }
 
+    @Cacheable("games")
     public RawgGamesResponse getTrendingGames() {
         log.info("Fetching trending games from RAWG");
 
@@ -51,8 +53,14 @@ public class RAWGClient {
                     .retrieve()
                     .bodyToMono(RawgGamesResponse.class)
                     .timeout(Duration.ofSeconds(10))
-                    .doOnSuccess(response -> log.info("Successfully fetched {} trending games",
-                            response != null && response.getResults() != null ? response.getResults().size() : 0))
+                    .flatMap(response -> {
+                        if (response != null && response.getResults() != null) {
+                            log.info("Successfully fetched {} trending games", response.getResults().size());
+                            return enrichGames(response.getResults())
+                                    .thenReturn(response);
+                        }
+                        return Mono.just(response);
+                    })
                     .doOnError(error -> log.error("Error fetching trending games: {}", error.getMessage()))
                     .onErrorResume(e -> {
                         log.warn("Returning empty response due to error");
@@ -164,5 +172,33 @@ public class RAWGClient {
             log.error("Exception while fetching top-rated games", e);
             return RawgGamesResponse.builder().build();
         }
+    }
+
+    private Mono<Void> enrichGames(java.util.List<junioranyafulu.DailyDigest.dto.rawg.RawgGame> games) {
+        // Limit to top 5 to avoid rate limits
+        return reactor.core.publisher.Flux.fromIterable(games)
+                .take(5)
+                .flatMap(game -> webClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/games/" + game.getId())
+                                .queryParam("key", apiKey)
+                                .build())
+                        .retrieve()
+                        .bodyToMono(junioranyafulu.DailyDigest.dto.rawg.RawgGame.class)
+                        .timeout(Duration.ofSeconds(5))
+                        .doOnNext(details -> {
+                            if (details != null) {
+                                game.setDescriptionRaw(details.getDescriptionRaw());
+                                // Fallback if raw description is empty
+                                if (game.getDescriptionRaw() == null || game.getDescriptionRaw().isEmpty()) {
+                                    game.setDescriptionRaw(details.getDescription());
+                                }
+                            }
+                        })
+                        .onErrorResume(e -> {
+                            log.warn("Failed to enrich game {}: {}", game.getId(), e.getMessage());
+                            return Mono.empty();
+                        }))
+                .then();
     }
 }

@@ -2,7 +2,6 @@ package junioranyafulu.DailyDigest.client;
 
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -11,7 +10,6 @@ import junioranyafulu.DailyDigest.dto.Article;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Slf4j
@@ -59,8 +57,7 @@ public class OllamaClient {
                 .append("5. **No Sources**: Do not mention data sources (e.g., 'According to...') in the text.\n")
                 .append("6. **Omission**: If a section has no strong news, omit it entirely.\n\n")
                 .append("OUTPUT STRUCTURE (STRICT):\n\n")
-                .append("# Title\n")
-                .append("Date (human-readable)\n\n")
+                .append("OUTPUT STRUCTURE (STRICT):\n\n")
                 .append("## Gaming News\n")
                 .append("- **[Topic/Game Name]**: Concise summary of the development (max 2 sentences).\n")
                 .append("- **[Topic/Game Name]**: Concise summary of the development (max 2 sentences).\n\n")

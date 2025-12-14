@@ -48,4 +48,7 @@ public class TmdbTVShow {
 
     @JsonProperty("original_language")
     private String originalLanguage;
+
+    private String trailerKey;
+    private List<String> cast;
 }

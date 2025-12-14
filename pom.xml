@@ -103,6 +103,13 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- Commonmark (Markdown to HTML) -->
+		<dependency>
+			<groupId>org.commonmark</groupId>
+			<artifactId>commonmark</artifactId>
+			<version>0.21.0</version>
+		</dependency>
 	</dependencies>
 
 	<dependencyManagement>

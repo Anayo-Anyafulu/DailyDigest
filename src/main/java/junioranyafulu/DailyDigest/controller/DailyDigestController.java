@@ -28,9 +28,10 @@ public class DailyDigestController {
     }
 
     @GetMapping(value = "/latest/html", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> getLatestDigestHtml() {
+    public ResponseEntity<String> getLatestDigestHtml(
+            @RequestParam(value = "type", defaultValue = "all") String type) {
         Digest digest = dailyDigestService.getLatestDigest();
-        return ResponseEntity.ok(digest.getHtmlContent());
+        return ResponseEntity.ok(dailyDigestService.getDigestHtml(digest, type));
     }
 
     @GetMapping(value = "/date/{date}", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -42,9 +43,10 @@ public class DailyDigestController {
 
     @GetMapping(value = "/date/{date}/html", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> getDigestByDateHtml(
-            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(value = "type", defaultValue = "all") String type) {
         Digest digest = dailyDigestService.getDigestByDate(date);
-        return ResponseEntity.ok(digest.getHtmlContent());
+        return ResponseEntity.ok(dailyDigestService.getDigestHtml(digest, type));
     }
 
     @PostMapping(value = "/generate", produces = MediaType.APPLICATION_JSON_VALUE)

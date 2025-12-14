@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +33,9 @@ public class DailyDigestService {
     private final DigestRepository digestRepository;
     private final HtmlRenderingService htmlRenderingService;
 
+    private final RankingService rankingService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
     @Autowired
     public DailyDigestService(
             NewsApiClient newsApiClient,
@@ -39,13 +43,17 @@ public class DailyDigestService {
             TMDbClient tmdbClient,
             RAWGClient rawgClient,
             DigestRepository digestRepository,
-            HtmlRenderingService htmlRenderingService) {
+            HtmlRenderingService htmlRenderingService,
+            RankingService rankingService,
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.newsApiClient = newsApiClient;
         this.ollamaClient = ollamaClient;
         this.tmdbClient = tmdbClient;
         this.rawgClient = rawgClient;
         this.digestRepository = digestRepository;
         this.htmlRenderingService = htmlRenderingService;
+        this.rankingService = rankingService;
+        this.objectMapper = objectMapper;
     }
 
     public Digest generateDailyDigest() {
@@ -62,7 +70,9 @@ public class DailyDigestService {
                     .build();
 
             // Save initial digest
-            digest = digestRepository.save(digest);
+            @SuppressWarnings("null")
+            Digest savedDigest = digestRepository.save(digest);
+            digest = savedDigest;
             log.info("Created digest with ID: {}", digest.getId());
 
             // Fetch data from all sources asynchronously
@@ -109,11 +119,29 @@ public class DailyDigestService {
 
             // Generate HTML content
             log.info("Rendering HTML digest...");
+
+            // Rank content
+            var rankedGames = rankingService
+                    .rankGames(gamesResponse != null ? gamesResponse.getResults() : Collections.emptyList());
+            var rankedMovies = rankingService
+                    .rankMovies(moviesResponse != null ? moviesResponse.getResults() : Collections.emptyList());
+            var rankedTV = rankingService
+                    .rankTVShows(tvResponse != null ? tvResponse.getResults() : Collections.emptyList());
+
+            // Save raw data for dynamic rendering
+            try {
+                digest.setRawGames(objectMapper.writeValueAsString(rankedGames));
+                digest.setRawMovies(objectMapper.writeValueAsString(rankedMovies));
+                digest.setRawTV(objectMapper.writeValueAsString(rankedTV));
+            } catch (Exception e) {
+                log.error("Failed to serialize raw data", e);
+            }
+
             String htmlContent = htmlRenderingService.renderDigestToHtml(
                     digest,
-                    gamesResponse != null ? gamesResponse.getResults() : Collections.emptyList(),
-                    moviesResponse != null ? moviesResponse.getResults() : Collections.emptyList(),
-                    tvResponse != null ? tvResponse.getResults() : Collections.emptyList());
+                    rankedGames,
+                    rankedMovies,
+                    rankedTV);
             digest.setHtmlContent(htmlContent);
 
             // Update digest status
@@ -121,7 +149,7 @@ public class DailyDigestService {
             digest.setUpdatedAt(LocalDateTime.now());
 
             // Save final digest
-            digest = digestRepository.save(digest);
+            digest = java.util.Objects.requireNonNull(digestRepository.save(digest));
             log.info("Daily digest generated successfully with ID: {}", digest.getId());
 
             return digest;
@@ -135,6 +163,36 @@ public class DailyDigestService {
     public Digest getLatestDigest() {
         return digestRepository.findLatestCompleted()
                 .orElseThrow(() -> new RuntimeException("No completed digest found"));
+    }
+
+    public String getDigestHtml(Digest digest, String edition) {
+        try {
+            List<junioranyafulu.DailyDigest.dto.rawg.RawgGame> games = Collections.emptyList();
+            List<junioranyafulu.DailyDigest.dto.tmdb.TmdbMovie> movies = Collections.emptyList();
+            List<junioranyafulu.DailyDigest.dto.tmdb.TmdbTVShow> tvShows = Collections.emptyList();
+
+            if (digest.getRawGames() != null) {
+                games = objectMapper.readValue(digest.getRawGames(),
+                        new com.fasterxml.jackson.core.type.TypeReference<List<junioranyafulu.DailyDigest.dto.rawg.RawgGame>>() {
+                        });
+            }
+            if (digest.getRawMovies() != null) {
+                movies = objectMapper.readValue(digest.getRawMovies(),
+                        new com.fasterxml.jackson.core.type.TypeReference<List<junioranyafulu.DailyDigest.dto.tmdb.TmdbMovie>>() {
+                        });
+            }
+            if (digest.getRawTV() != null) {
+                tvShows = objectMapper.readValue(digest.getRawTV(),
+                        new com.fasterxml.jackson.core.type.TypeReference<List<junioranyafulu.DailyDigest.dto.tmdb.TmdbTVShow>>() {
+                        });
+            }
+
+            return htmlRenderingService.renderDigestToHtml(digest, games, movies, tvShows, edition);
+        } catch (Exception e) {
+            log.error("Error deserializing raw data for digest {}", digest.getId(), e);
+            // Fallback to stored HTML if deserialization fails
+            return digest.getHtmlContent();
+        }
     }
 
     public Digest getDigestByDate(LocalDate date) {

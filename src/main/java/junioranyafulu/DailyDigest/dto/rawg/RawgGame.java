@@ -24,6 +24,11 @@ public class RawgGame {
 
     private Boolean tba;
 
+    private String description;
+
+    @JsonProperty("description_raw")
+    private String descriptionRaw;
+
     @JsonProperty("background_image")
     private String backgroundImage;
 

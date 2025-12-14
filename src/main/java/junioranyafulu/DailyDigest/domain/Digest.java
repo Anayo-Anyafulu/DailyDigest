@@ -36,6 +36,18 @@ public class Digest {
     @Column(length = 50000)
     private String summary;
 
+    @Lob
+    @Column(length = 100000)
+    private String rawGames;
+
+    @Lob
+    @Column(length = 100000)
+    private String rawMovies;
+
+    @Lob
+    @Column(length = 100000)
+    private String rawTV;
+
     @OneToMany(mappedBy = "digest", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<DigestSection> sections = new ArrayList<>();
